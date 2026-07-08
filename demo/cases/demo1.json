@@ -1,0 +1,11 @@
+{
+  "case_id": "R2026-0001",
+  "modality": "H&E WSI",
+  "clinical_info": "60y male, gastric biopsy for suspected malignancy",
+  "hints": {
+    "cancer": true,
+    "subtype": "adenocarcinoma",
+    "grade": "G2",
+    "mutations": ["HER2", "TP53"]
+  }
+}
