@@ -54,6 +54,37 @@ class MockLLMClient:
         case_id = ctx["case_id"]
         hints = ctx.get("case_metadata", {}).get("hints", {})
         already_run = {c.tool_name for c in ctx.get("executed_tools", [])}
+        critic_notes = ctx.get("critic_notes", [])
+
+        # Retry branch: Self-Critic asked to re-examine a different ROI.
+        retry_signal = any(
+            getattr(n, "kind", None) == "inconsistency"
+            and "different ROI" in getattr(n, "message", "")
+            for n in critic_notes
+        )
+        if retry_signal and hints.get("retry_roi"):
+            new_roi = hints["retry_roi"]
+            return PlannerOutput(
+                plan=[
+                    ToolCall(
+                        tool_name="region_view",
+                        args={
+                            "case_id": case_id,
+                            "region_id": new_roi,
+                            "bbox": [200, 200, 456, 456],
+                        },
+                        rationale=(
+                            f"Self-Critic flagged ambiguity; sample a fresh ROI ({new_roi})"
+                        ),
+                    ),
+                    ToolCall(
+                        tool_name="subtype_classifier",
+                        args={"case_id": case_id, "region_id": new_roi},
+                        rationale=f"re-classify subtype on {new_roi}",
+                    ),
+                ],
+                rationale="ROI retry driven by Self-Critic feedback",
+            )
 
         steps: list[ToolCall] = []
 
@@ -154,4 +185,27 @@ class MockLLMClient:
                     message="cancer detected but no histologic grade was produced",
                 )
             )
+
+        # Consistency: subtype classifier is indeterminate on every attempt.
+        # Only fire while no attempt has committed — otherwise a successful
+        # retry silences the note automatically.
+        subtype_calls = [r for r in results if r.tool_name == "subtype_classifier"]
+        if subtype_calls:
+            def _max_prob(r):
+                probs = r.output.get("probabilities") or {}
+                return max(probs.values()) if probs else 0.0
+
+            best = max(_max_prob(r) for r in subtype_calls)
+            if best < 0.5:
+                first = subtype_calls[0]
+                notes.append(
+                    CriticNote(
+                        kind="inconsistency",
+                        call_id=first.call_id,
+                        message=(
+                            "subtype classifier indeterminate on current ROI "
+                            f"(max prob={best:.2f}); recommend different ROI"
+                        ),
+                    )
+                )
         return CriticOutput(notes=notes)

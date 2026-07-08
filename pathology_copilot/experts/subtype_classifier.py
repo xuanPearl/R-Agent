@@ -14,7 +14,14 @@ class SubtypeClassifier(ExpertModel):
     def predict(
         self, vit_output: ViTOutput, case_metadata: dict[str, Any]
     ) -> dict[str, Any]:
-        hint = case_metadata.get("hints", {}).get("subtype")
+        hints = case_metadata.get("hints", {})
+        region_id = case_metadata.get("_current_region", "")
+        ambiguous_regions = hints.get("ambiguous_regions", [])
+        if region_id and region_id in ambiguous_regions:
+            # Flat distribution — the model cannot commit to a subtype here.
+            probs = {c: round(1.0 / len(self.CANDIDATES), 2) for c in self.CANDIDATES}
+            return {"subtype": None, "probabilities": probs}
+        hint = hints.get("subtype")
         if hint in self.CANDIDATES:
             probs = {c: 0.05 for c in self.CANDIDATES}
             probs[hint] = 0.9

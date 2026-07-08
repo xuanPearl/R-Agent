@@ -53,10 +53,20 @@ class SchemaReportBuilder:
                     max(r.output.get("probabilities", {"_": 0.0}).values())
                 )
                 confidences.append(prob)
+                region_hint = grounding[0].region_id if grounding else "ROI"
+                if subtype is None:
+                    statement = (
+                        f"Subtype: indeterminate on {region_hint} "
+                        f"(max prob={prob:.2f})"
+                    )
+                else:
+                    statement = (
+                        f"Subtype: {subtype} on {region_hint} (p={prob:.2f})"
+                    )
                 findings.append(
                     Evidence(
                         call_id=r.call_id,
-                        statement=f"Subtype: {subtype} (p={prob:.2f})",
+                        statement=statement,
                         confidence=prob,
                         grounding=grounding,
                     )

@@ -33,7 +33,11 @@ class _ExpertTool(Tool):
         case_id = call.args.get("case_id", case_metadata.get("case_id", "unknown"))
         vit_out = _vit.embed(f"{case_id}:{region_id}")
         expert = expert_registry.get(self.expert_name)
-        output = expert.predict(vit_out, case_metadata)
+        # Experts sometimes need to know which region they're being called on
+        # (e.g. to react to an "ambiguous ROI" hint). Pass it via a shallow
+        # copy so we don't mutate the caller's metadata.
+        expert_ctx = {**case_metadata, "_current_region": region_id}
+        output = expert.predict(vit_out, expert_ctx)
         return ToolResult(
             call_id=call.call_id,
             tool_name=self.name,

@@ -1,0 +1,13 @@
+{
+  "case_id": "R2026-0003",
+  "modality": "H&E WSI",
+  "clinical_info": "62y female, breast core biopsy, dense stromal region — initial ROI ambiguous",
+  "hints": {
+    "cancer": true,
+    "ambiguous_regions": ["roi_center"],
+    "retry_roi": "roi_periphery",
+    "subtype": "adenocarcinoma",
+    "grade": "G2",
+    "mutations": ["HER2"]
+  }
+}

@@ -11,9 +11,12 @@ from typing import Any, Callable, Optional
 from .agents import Executor, Planner, SchemaReportBuilder, SelfCritic
 from .config import DEFAULT_CONFIG, Config
 from .llm import MockLLMClient
-from .schemas import DiagnosticReport, ToolResult
+from .schemas import CriticOutput, DiagnosticReport, ToolResult
 from .state import ExternalState
 from .tools import tool_registry
+
+
+CriticHook = Callable[[int, CriticOutput], None]
 
 
 class Orchestrator:
@@ -22,6 +25,7 @@ class Orchestrator:
         *,
         config: Config = DEFAULT_CONFIG,
         step_hook: Optional[Callable[[ExternalState, ToolResult], None]] = None,
+        critic_hook: Optional[CriticHook] = None,
         max_critic_rounds: int = 1,
     ) -> None:
         self._config = config
@@ -30,6 +34,7 @@ class Orchestrator:
         self._executor = Executor(tool_registry, on_step=step_hook)
         self._critic = SelfCritic(self._llm, config)
         self._report = SchemaReportBuilder()
+        self._critic_hook = critic_hook
         self._max_critic_rounds = max_critic_rounds
 
     def run(
@@ -53,16 +58,18 @@ class Orchestrator:
         if not state.finished:
             return state, None
 
-        for _ in range(self._max_critic_rounds + 1):
-            self._critic.review(state)
-            has_flags = bool(state.critic_notes)
-            if not has_flags:
+        for round_num in range(1, self._max_critic_rounds + 2):
+            output = self._critic.review(state)
+            if self._critic_hook is not None:
+                self._critic_hook(round_num, output)
+            if not output.notes:
                 break
-            # Try one more planner round to fill missing tools.
+            # Feed the notes back to the Planner. The Planner is trusted to
+            # emit only the *new* steps that address the flags — we don't
+            # de-dupe by tool name here, because a retry may re-run the same
+            # tool on a different region.
             plan_out = self._planner.plan(state)
-            new_calls = [c for c in plan_out.plan if c.tool_name not in {
-                r.tool_name for r in state.executed
-            }]
+            new_calls = list(plan_out.plan)
             if not new_calls:
                 break
             state.pending.extend(new_calls)

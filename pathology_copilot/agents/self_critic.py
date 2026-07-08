@@ -29,5 +29,7 @@ class SelfCritic:
         output = self._llm.complete(
             role="critic", context=ctx, response_schema=CriticOutput
         )
-        state.critic_notes.extend(output.notes)
+        # Replace, don't append: a review reflects the *current* state of the
+        # world. A successful retry should clear a previously-raised flag.
+        state.critic_notes = list(output.notes)
         return output

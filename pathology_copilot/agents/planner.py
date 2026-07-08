@@ -20,6 +20,7 @@ class Planner:
             "case_id": state.case_id,
             "case_metadata": state.case_metadata,
             "executed_tools": state.executed,
+            "critic_notes": state.critic_notes,
         }
         return self._llm.complete(
             role="planner", context=ctx, response_schema=PlannerOutput

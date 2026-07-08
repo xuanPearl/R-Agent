@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .orchestrator import Orchestrator
-from .schemas import ToolResult
+from .schemas import CriticOutput, ToolResult
 from .state import ExternalState
 
 
@@ -27,11 +27,26 @@ def _root() -> None:
 
 def _print_step(state: ExternalState, result: ToolResult) -> None:
     status = "OK" if result.error is None else f"ERR({result.error})"
+    region = result.grounding[0].region_id if result.grounding else "-"
     console.print(
         f"[cyan]\\[Executor][/cyan] step {state.step}/{len(state.plan)}: "
-        f"[bold]{result.tool_name}[/bold] "
+        f"[bold]{result.tool_name}[/bold] on {region} "
         f"uncertainty={result.uncertainty:.2f} {status}"
     )
+
+
+def _print_critic(round_num: int, output: CriticOutput) -> None:
+    if not output.notes:
+        console.print(
+            f"[magenta]\\[Self-Critic] round {round_num}: 0 flags — passed[/magenta]"
+        )
+        return
+    console.print(
+        f"[magenta]\\[Self-Critic] round {round_num}: "
+        f"{len(output.notes)} flag(s)[/magenta]"
+    )
+    for note in output.notes:
+        console.print(f"  - [{note.kind}] {note.message}")
 
 
 def _print_report(state: ExternalState) -> None:
@@ -76,7 +91,7 @@ def run(
             )
         )
 
-    orchestrator = Orchestrator(step_hook=_print_step)
+    orchestrator = Orchestrator(step_hook=_print_step, critic_hook=_print_critic)
     state, report = orchestrator.run(
         case_id=case_id,
         case_metadata=case_data,
@@ -98,15 +113,6 @@ def run(
         return
 
     console.print()
-    console.print(
-        Panel.fit(
-            f"[bold]Self-Critic notes:[/bold] {len(state.critic_notes)}",
-            style="magenta",
-        )
-    )
-    for note in state.critic_notes:
-        console.print(f"  - [{note.kind}] {note.message}")
-
     assert report is not None
     table = Table(title="Diagnostic Report", show_lines=False)
     table.add_column("Field", style="bold")
