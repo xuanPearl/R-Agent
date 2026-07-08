@@ -41,7 +41,7 @@ class SchemaReportBuilder:
                         call_id=r.call_id,
                         statement=(
                             f"Cancer detection: {'positive' if has_cancer else 'negative'} "
-                            f"(p={prob:.2f})"
+                            f"(confidence={prob:.2f})"
                         ),
                         confidence=prob,
                         grounding=grounding,

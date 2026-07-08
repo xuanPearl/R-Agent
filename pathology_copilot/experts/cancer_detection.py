@@ -16,7 +16,10 @@ class CancerDetection(ExpertModel):
         if hint is True:
             return {"has_cancer": True, "probability": 0.91}
         if hint is False:
-            return {"has_cancer": False, "probability": 0.05}
+            return {"has_cancer": False, "probability": 0.95}
         # Fallback: derive a pseudo-probability from embedding energy.
         energy = sum(x * x for x in vit_output.embedding) / len(vit_output.embedding)
-        return {"has_cancer": energy > 0.33, "probability": min(0.99, energy)}
+        p_cancer = min(0.99, energy)
+        has_cancer = p_cancer > 0.5
+        confidence = p_cancer if has_cancer else 1.0 - p_cancer
+        return {"has_cancer": has_cancer, "probability": confidence}
